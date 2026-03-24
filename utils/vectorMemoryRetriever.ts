@@ -34,7 +34,7 @@ import { parseDateExpression } from './parseDateExpression';
 import { extractHormoneSnapshot, hormoneResonance as computeHormoneResonance } from './hormoneDynamics';
 
 const QUERY_REWRITE_MODEL = 'Qwen/Qwen3-8B';
-const QUERY_REWRITE_TIMEOUT_MS = 3000;
+const QUERY_REWRITE_TIMEOUT_MS = 5000;
 
 const MIN_RAW_SIMILARITY = 0.35;
 const MIN_KEYWORD_SCORE = 0.5;      // Keyword-only rescue threshold
@@ -66,6 +66,18 @@ function detectTemporalIntent(query: string): TemporalIntent {
 // ====== LLM Query Rewriting ======
 
 const REWRITE_PROMPT_TEMPLATE = `你是一个记忆检索助手。根据以下对话上下文，提取用户当前最可能想了解或回忆的话题，生成一段精简的检索查询（30字以内）。
+
+【概念展开规则】
+对话中出现具体事物时，必须同时写出它的上位类别词，用空格分隔。这是为了让检索能命中更广泛的相关记忆。
+举例：
+- 用户提到"萨摩耶" → 查询写"萨摩耶 狗 宠物"
+- 用户提到"星巴克" → 查询写"星巴克 咖啡"
+- 用户提到"小米SU7" → 查询写"小米SU7 汽车 车"
+- 用户提到"三体" → 查询写"三体 小说 科幻"
+- 用户提到某人昵称 → 同时写出可能的全名或称呼
+- 用户提到"寿司" → 查询写"寿司 日料 吃饭"
+如果没有需要展开的具体事物，正常提取话题即可。
+
 只输出查询文本，不要加任何解释、引号或标点修饰。
 
 对话上下文：
@@ -167,7 +179,7 @@ async function rewriteQueryWithLLM(
                 model: rewriteModel,
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.3,
-                max_tokens: 100,
+                max_tokens: 200,
             }),
             signal: controller.signal,
         });

@@ -158,7 +158,7 @@ export interface VectorMemory {
     lastMentioned: number;         // Timestamp (ms) of last retrieval
     createdAt: number;             // Timestamp (ms) of creation
     updatedAt?: number;            // Timestamp (ms) of last update
-    vector: number[];              // Embedding vector (dim depends on model, bge-m3=1024)
+    vector: number[];              // Embedding vector (dim depends on model, bge-m3=1024, cohere embed-v4=1536)
     modelId?: string;              // Embedding model used (e.g. "BAAI/bge-m3")
     source: 'auto' | 'manual' | 'import'; // How it was created
     sourceMessageIds?: number[];           // IDs of messages that produced/updated this memory
