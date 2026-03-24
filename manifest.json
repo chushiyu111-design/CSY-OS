@@ -1,0 +1,20 @@
+{
+  "short_name": "CSY-SullyOS",
+  "name": "CSY-Sully OS",
+  "icons": [
+    {
+      "src": "/icons/icon-192.webp",
+      "sizes": "192x192",
+      "type": "image/webp"
+    },
+    {
+      "src": "/icons/icon-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#0f1115",
+  "background_color": "#0f1115"
+}

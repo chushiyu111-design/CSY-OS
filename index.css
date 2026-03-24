@@ -1,0 +1,312 @@
+@import "tailwindcss";
+
+/* --- Custom Handwriting Font (Journal Card) --- */
+@font-face {
+  font-family: 'JournalFont';
+  src: url('/fonts/journal.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --- Custom Handwriting Font (Private Note Card) --- */
+@font-face {
+  font-family: 'NoteFont';
+  src: url('/fonts/note.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --- Handwriting Font: 手写体6 (Inner Voice) --- */
+@font-face {
+  font-family: 'ShouXie6';
+  src: url('/fonts/shouxie6.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --- Handwriting Font: 爱你在黄昏日落手写体 (Inner Voice fallback) --- */
+@font-face {
+  font-family: 'HuangHunShouXie';
+  src: url('/fonts/huanghun-shouxie.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ==========================================
+   Custom Theme (migrated from CDN inline config)
+   Tailwind v4 CSS-first configuration
+   ========================================== */
+
+@theme {
+  /* Font Family */
+  --font-sans: var(--app-font), sans-serif;
+
+  /* Custom Colors */
+  --color-primary: hsl(var(--primary-hue), var(--primary-sat), var(--primary-lightness));
+  --color-primary-focus: hsl(var(--primary-hue), var(--primary-sat), calc(var(--primary-lightness) - 10%));
+  --color-primary-light: hsl(var(--primary-hue), var(--primary-sat), 92%);
+  --color-surface: rgba(255, 255, 255, 0.75);
+  --color-surface-glass: rgba(255, 255, 255, 0.35);
+
+  /* Custom Animations */
+  --animate-fade-in: fadeIn 0.3s ease-in-out;
+  --animate-slide-up: slideUp 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  --animate-slide-down: slideDown 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  --animate-pop-in: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --animate-float-up: floatUp 3s ease-out forwards;
+  --animate-wiggle: wiggle 0.5s ease-in-out infinite;
+  --animate-bounce-slow: bounceSlow 2s ease-in-out infinite;
+  --animate-float: floatDrift 4s ease-in-out infinite alternate;
+  --animate-notif-in: notifSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-voice-bar-1: voiceBar1 0.8s ease-in-out infinite;
+  --animate-voice-bar-2: voiceBar2 0.8s ease-in-out 0.15s infinite;
+  --animate-voice-bar-3: voiceBar3 0.8s ease-in-out 0.3s infinite;
+  --animate-inner-voice-in: innerVoiceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Custom Keyframes */
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideUp {
+  0% {
+    transform: translateY(100%);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateY(100vh) scale(1);
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-50px) scale(1.5);
+  }
+}
+
+@keyframes wiggle {
+
+  0%,
+  100% {
+    transform: translate(-50%, -100%) rotate(-3deg);
+  }
+
+  50% {
+    transform: translate(-50%, -100%) rotate(3deg);
+  }
+}
+
+@keyframes bounceSlow {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes floatDrift {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0.3;
+  }
+
+  100% {
+    transform: translateY(-30px) scale(1.1);
+    opacity: 0.6;
+  }
+}
+
+/* iOS Notification Banner — slide down from top with overshoot */
+@keyframes notifSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-100%) scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Voice Bubble — bar wave animation */
+@keyframes voiceBar1 {
+
+  0%,
+  100% {
+    height: 4px;
+  }
+
+  50% {
+    height: 14px;
+  }
+}
+
+@keyframes voiceBar2 {
+
+  0%,
+  100% {
+    height: 8px;
+  }
+
+  50% {
+    height: 16px;
+  }
+}
+
+@keyframes voiceBar3 {
+
+  0%,
+  100% {
+    height: 4px;
+  }
+
+  50% {
+    height: 12px;
+  }
+}
+
+/* Inner Voice Card — paper card spring entrance */
+@keyframes innerVoiceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.88) rotate(-2deg) translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-1deg) translateY(0);
+  }
+}
+
+/* ==========================================
+   Global Styles (migrated from index.html)
+   ========================================== */
+
+:root {
+  --primary-hue: 245;
+  --primary-sat: 25%;
+  --primary-lightness: 65%;
+  --safe-area-bottom: env(safe-area-inset-bottom);
+  --app-height: 100%;
+  /* Default fallback */
+  --app-font: 'Quicksand', sans-serif;
+
+  /* Card Design Tokens — overridable per theme */
+  --card-bg: #ffffff;
+  --card-border: #f1f5f9;
+  --card-text-primary: #334155;
+  --card-text-secondary: #64748b;
+  --card-text-muted: #94a3b8;
+
+  /* Bubble Design Tokens */
+  --bubble-user-bg: #95ec69;
+  --bubble-ai-bg: #ffffff;
+  --bubble-user-text: #000000;
+  --bubble-ai-text: #333333;
+  --bubble-radius: 6px;
+
+  /* System Pill Tokens */
+  --pill-bg: rgba(226, 232, 240, 0.4);
+  --pill-text: #64748b;
+}
+
+body {
+  background-color: #0f1115;
+  margin: 0;
+  overflow: hidden;
+  /* Critical: Prevent browser back/forward swipe navigation AND vertical rubber-banding */
+  overscroll-behavior: none;
+  /* Prevent text selection to feel like an app */
+  user-select: none;
+  -webkit-user-select: none;
+  height: 100vh;
+  height: 100dvh;
+  /* iOS Fix */
+  width: 100vw;
+  font-family: var(--app-font);
+}
+
+/* Global scroll behavior fix */
+.no-overscroll {
+  overscroll-behavior: none;
+}
+
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
+
+/* Re-enable selection for inputs */
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+}
+
+/* Utility for Safe Area */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
