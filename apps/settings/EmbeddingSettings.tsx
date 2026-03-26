@@ -261,11 +261,19 @@ const EmbeddingSettings: React.FC = () => {
 };
 
 const BackendPassCard: React.FC = () => {
+    const [backendUrl, setBackendUrlInput] = useState(() => localStorage.getItem('csyos_backend_url') || 'http://localhost:6677');
     const [token, setToken] = useState(() => localStorage.getItem('csyos_backend_token') || '');
     const [status, setStatus] = useState('');
 
     const handleSave = () => {
         const trimmed = token.trim();
+        const trimmedUrl = backendUrl.replace(/\/+$/, '').trim();
+        if (trimmedUrl) {
+            localStorage.setItem('csyos_backend_url', trimmedUrl);
+        } else {
+            localStorage.removeItem('csyos_backend_url');
+        }
+        
         if (trimmed) {
             localStorage.setItem('csyos_backend_token', trimmed);
             localStorage.removeItem('csyos_backend_alive'); // invalidate cache
@@ -280,9 +288,9 @@ const BackendPassCard: React.FC = () => {
     const handleTest = async () => {
         if (!token.trim()) { setStatus('请先填写通行证密码'); return; }
         setStatus('连接中...');
-        const backendUrl = localStorage.getItem('csyos_backend_url') || 'http://localhost:6677';
+        const currentUrl = backendUrl.replace(/\/+$/, '').trim() || 'http://localhost:6677';
         try {
-            const resp = await fetch(`${backendUrl}/health`, {
+            const resp = await fetch(`${currentUrl}/health`, {
                 headers: { 'Authorization': `Bearer ${token.trim()}` },
                 signal: AbortSignal.timeout(5000),
             });
@@ -332,6 +340,16 @@ const BackendPassCard: React.FC = () => {
             </div>
 
             <div className="relative space-y-3">
+                <div>
+                    <label className="text-[10px] font-bold text-[#8088b8] uppercase tracking-widest mb-1.5 block pl-1">后端服务器地址</label>
+                    <input
+                        type="text"
+                        value={backendUrl}
+                        onChange={e => setBackendUrlInput(e.target.value)}
+                        placeholder="例如: http://192.168.x.x:6677"
+                        className="w-full bg-white/60 border border-[#d0d4e8]/60 rounded-xl px-4 py-2.5 text-sm font-mono focus:bg-white transition-all"
+                    />
+                </div>
                 <div>
                     <label className="text-[10px] font-bold text-[#8088b8] uppercase tracking-widest mb-1.5 block pl-1">通行证密码</label>
                     <input
