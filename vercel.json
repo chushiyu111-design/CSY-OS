@@ -2,6 +2,10 @@
   "ignoreCommand": "exit 1",
   "rewrites": [
     {
+      "source": "/proxy-backend/(.*)",
+      "destination": "http://43.134.141.80:6677/$1"
+    },
+    {
       "source": "/minimax-api/(.*)",
       "destination": "/api/tts-proxy?path=$1"
     },
