@@ -6,7 +6,7 @@
  * 本函数作为代理，在请求头中加入 Authorization: Bearer xxx 后转发给 MiniMax。
  *
  * 使用方法（前端）:
- *   const wsUrl = `wss://sullytest-beta.vercel.app/api/tts-ws-proxy?token=${encodeURIComponent(token)}`;
+ *   const wsUrl = `wss://<your-csy-os-domain>/api/tts-ws-proxy?token=${encodeURIComponent(token)}`;
  *   const ws = new WebSocket(wsUrl);
  *
  * 生产环境替换域名为正式链接。

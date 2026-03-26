@@ -13,6 +13,7 @@ import { CharacterProfile, VectorMemory, APIConfig } from '../types';
 import { EmbeddingService, getEmbeddingConfig } from './embeddingService';
 import { DB } from './db';
 import { extractHormoneSnapshot, computeSalience } from './hormoneDynamics';
+import { tryBackendExtraction, tryBackendCallExtraction } from './backendClient';
 import { MindSnapshotExtractor } from './mindSnapshotExtractor';
 
 // Module-level concurrency lock: one extraction per character at a time
@@ -417,12 +418,35 @@ export const VectorMemoryExtractor = {
         extractingChars.add(charId);
         console.log(`🧠 [VectorExtract] Starting auto-extract for ${charSnapshot.name} (${newMsgs.length} new)`);
 
-        // Track the last successfully processed window's timestamp
-        // so error recovery only skips what was actually processed.
+        // ========== Backend-First Extraction ==========
+        try {
+            const backendMsgs = newMsgs.map(m => ({
+                role: m.role, content: m.content, type: m.type,
+                timestamp: m.timestamp || Date.now(),
+                id: m.id,
+            }));
+            const handled = await tryBackendExtraction(
+                charId, charSnapshot.name, backendMsgs, subApiConfig,
+            );
+            if (handled) {
+                console.log('🔗 [VectorExtract] Backend handled extraction, updating lastExtractAt');
+                const lastTs = newMsgs[newMsgs.length - 1]?.timestamp || Date.now();
+                const freshChar = (await DB.getAllCharacters()).find(c => c.id === charId);
+                if (freshChar) {
+                    freshChar.vectorMemoryLastExtractAt = lastTs;
+                    await DB.saveCharacter(freshChar);
+                }
+                extractingChars.delete(charId);
+                return;
+            }
+        } catch {
+            // Silent fallthrough to local pipeline
+        }
+
+        // ========== Local Pipeline (Fallback) ==========
         let lastProcessedTimestamp = lastExtractAt;
 
         try {
-            // Load vector cache once for the entire batch to avoid repeated full-table scans in isDuplicate.
             const allMems = await DB.getAllVectorMemories(charId);
             const vectorCache = new Map<string, number[]>(allMems.map(m => [m.id, m.vector]));
             console.log(`🧠 [VectorExtract] Loaded vector cache: ${vectorCache.size} memories`);

@@ -32,6 +32,7 @@ import { EmbeddingService, getEmbeddingConfig, segmentWords } from './embeddingS
 import { DB } from './db';
 import { parseDateExpression } from './parseDateExpression';
 import { extractHormoneSnapshot, hormoneResonance as computeHormoneResonance } from './hormoneDynamics';
+import { tryBackendRetrieval } from './backendClient';
 
 const QUERY_REWRITE_MODEL = 'Qwen/Qwen3-8B';
 const QUERY_REWRITE_TIMEOUT_MS = 5000;
@@ -241,6 +242,74 @@ function computeTopK(topSimilarity: number): number {
     return 7;                               // Fuzzy intent — more context
 }
 
+// ====== MMR Diversity Selection ======
+
+/**
+ * Maximal Marginal Relevance (MMR) greedy selection.
+ * Balances relevance (score) with diversity (dissimilarity to already selected).
+ *
+ * MMR(i) = (1 - λ) × score(i)  -  λ × max_{j ∈ selected} sim(i, j)
+ *
+ * λ = 0.3 → moderate diversity, still relevance-dominant.
+ * Hard dedup: candidates with cosine > 0.85 to any selected item are skipped.
+ */
+const DIVERSITY_LAMBDA = 0.3;
+const HARD_DEDUP_THRESHOLD = 0.85;
+
+function diversitySelect(
+    candidates: { memory: VectorMemory; score: number; rawSim: number; kwScore: number }[],
+    targetK: number,
+): typeof candidates {
+    if (candidates.length <= targetK) return candidates;
+
+    const n = candidates.length;
+    const selected: number[] = [];
+    const remaining = new Set(Array.from({ length: n }, (_, i) => i));
+
+    // Step 1: pick the highest-scoring candidate first
+    let bestIdx = 0;
+    for (let i = 1; i < n; i++) {
+        if (candidates[i].score > candidates[bestIdx].score) bestIdx = i;
+    }
+    selected.push(bestIdx);
+    remaining.delete(bestIdx);
+
+    // Step 2: greedily add the candidate maximizing MMR
+    while (selected.length < targetK && remaining.size > 0) {
+        let bestMMR = -Infinity;
+        let bestNext = -1;
+
+        for (const i of remaining) {
+            const vec_i = candidates[i].memory.vector;
+
+            // Compute max cosine similarity to any already-selected item
+            let maxSimToSelected = 0;
+            for (const j of selected) {
+                const sim = EmbeddingService.cosineSimilarity(vec_i, candidates[j].memory.vector);
+                if (sim > maxSimToSelected) maxSimToSelected = sim;
+            }
+
+            // Hard dedup: skip near-duplicates
+            if (maxSimToSelected > HARD_DEDUP_THRESHOLD) continue;
+
+            // MMR score: balance relevance and diversity
+            const mmr = (1 - DIVERSITY_LAMBDA) * candidates[i].score
+                      - DIVERSITY_LAMBDA * maxSimToSelected;
+
+            if (mmr > bestMMR) {
+                bestMMR = mmr;
+                bestNext = i;
+            }
+        }
+
+        if (bestNext === -1) break; // all remaining are duplicates
+        selected.push(bestNext);
+        remaining.delete(bestNext);
+    }
+
+    return selected.map(i => candidates[i]);
+}
+
 // ====== IDF Index Builder ======
 
 function buildIDFIndex(headers: { title: string; content: string; emotionalJourney?: string }[]): Map<string, number> {
@@ -283,6 +352,30 @@ export const VectorMemoryRetriever = {
         currentHormoneState?: InternalState,  // 当前激素状态（用于状态依存性检索）
     ): Promise<string | null> {
         try {
+            // ========== Backend-First Retrieval ==========
+            // Try the backend API (includes graph diffusion, rerank, full pipeline).
+            // Falls back to local pipeline if backend is unavailable or returns null.
+            try {
+                const hormoneSnapshot = currentHormoneState ? extractHormoneSnapshot(currentHormoneState) : undefined;
+                const simpleMsgs = currentMsgs
+                    .filter(m => (m.role === 'user' || m.role === 'assistant') && (m.type === 'text' || m.type === 'call_log'))
+                    .slice(-5)
+                    .map(m => ({ role: m.role, content: m.content, type: m.type }));
+                const { fallback, memories } = await tryBackendRetrieval(charId, simpleMsgs, hormoneSnapshot);
+                if (!fallback) {
+                    // Backend successfully handled the request (even if it found 0 memories)
+                    if (memories) console.log('🔗 [VectorRetriever] Using backend retrieval result');
+                    else console.log('🔗 [VectorRetriever] Backend returned 0 memories');
+                    return memories || null; 
+                    // Return null here if empty, because index.ts expects null if no memories found,
+                    // but we DO NOT fall through to the local pipeline below.
+                }
+            } catch (err) {
+                console.warn('🔗 [VectorRetriever] tryBackendRetrieval threw:', err);
+                // Silent fallthrough to local pipeline
+            }
+
+            // ========== Local Pipeline (Fallback) ==========
             // Extract recent conversation context
             const contextMsgs = currentMsgs
                 .filter(m => (m.role === 'user' || m.role === 'assistant') && (m.type === 'text' || m.type === 'call_log'))
@@ -478,14 +571,14 @@ export const VectorMemoryRetriever = {
                 relevant = allRelevant.slice(0, dynamicK);
                 console.log(`🧠 [VectorRetriever] Temporal "${temporalIntent.type}": ${allRelevant.length} relevant → ${relevant.length} selected (K=${dynamicK})`);
             } else {
-                // Normal: take top K by weighted score (already reranked), then filter
+                // Normal: filter by threshold first, then apply MMR diversity selection
                 scored.sort((a, b) => b.score - a.score);
                 const dynamicK = computeTopK(scored[0]?.rawSim || 0);
-                const topKResults = scored.slice(0, dynamicK);
-                relevant = topKResults.filter(s =>
+                const aboveThreshold = scored.filter(s =>
                     s.rawSim >= MIN_RAW_SIMILARITY || s.kwScore >= MIN_KEYWORD_SCORE
                 );
-                console.log(`🧠 [VectorRetriever] Normal mode: K=${dynamicK}, ${relevant.length} above threshold`);
+                relevant = diversitySelect(aboveThreshold, dynamicK);
+                console.log(`🧠 [VectorRetriever] Normal mode: K=${dynamicK}, ${aboveThreshold.length} above threshold → ${relevant.length} after diversity`);
             }
 
             if (relevant.length === 0) {

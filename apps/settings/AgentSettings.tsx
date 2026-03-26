@@ -54,7 +54,7 @@ const AgentSettings: React.FC = () => {
 
                 <SliderRow
                     label="最短检查间隔"
-                    desc="角色多久至少检查一次是否该找你。越短越积极"
+                    desc="两次检查之间最少隔多久。越短检查越密集"
                     value={config.minIntervalMin}
                     min={3} max={60} step={1} unit="分钟"
                     onChange={v => {
@@ -65,7 +65,7 @@ const AgentSettings: React.FC = () => {
 
                 <SliderRow
                     label="最长检查间隔"
-                    desc="检查间隔的随机上限。越大间隔越随机、越像真人"
+                    desc="角色最久多长时间至少检查一次。越大间隔越随机、越像真人"
                     value={config.maxIntervalMin}
                     min={config.minIntervalMin + 5} max={120} step={1} unit="分钟"
                     onChange={v => { haptic.light(); update({ maxIntervalMin: v }); }}

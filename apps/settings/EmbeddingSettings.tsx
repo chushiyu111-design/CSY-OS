@@ -1,6 +1,8 @@
 
 import React, { useState } from 'react';
 import { useOS } from '../../context/OSContext';
+import { DB } from '../../utils/db';
+import { pushMemories } from '../../utils/backendClient';
 
 const EmbeddingSettings: React.FC = () => {
     const { addToast } = useOS();
@@ -98,6 +100,7 @@ const EmbeddingSettings: React.FC = () => {
     };
 
     return (
+        <>
         <section className="relative overflow-hidden bg-[#f0f7ee]/70 backdrop-blur-sm rounded-3xl p-6 shadow-sm border border-[#d4e8d0]/60">
             <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-gradient-to-br from-[#c8e8c0]/30 to-[#d4e4f7]/30 blur-2xl pointer-events-none" />
 
@@ -247,6 +250,125 @@ const EmbeddingSettings: React.FC = () => {
                 <div className="py-3 rounded-2xl text-[10px] font-bold bg-[#f0f7ee]/60 backdrop-blur-sm text-[#6b9b60] border border-[#d4e8d0]/50">
                     <div className="text-[9px] mb-1 font-mono opacity-70">MODEL</div>
                     {embeddingModel.split('/').pop()}
+                </div>
+            </div>
+        </section>
+
+        {/* Backend Pass — only token needed, URL is hardcoded */}
+        <BackendPassCard />
+        </>
+    );
+};
+
+const BackendPassCard: React.FC = () => {
+    const [token, setToken] = useState(() => localStorage.getItem('csyos_backend_token') || '');
+    const [status, setStatus] = useState('');
+
+    const handleSave = () => {
+        const trimmed = token.trim();
+        if (trimmed) {
+            localStorage.setItem('csyos_backend_token', trimmed);
+            localStorage.removeItem('csyos_backend_alive'); // invalidate cache
+            setStatus('✅ 已保存，后端引擎已启用');
+        } else {
+            localStorage.removeItem('csyos_backend_token');
+            localStorage.removeItem('csyos_backend_alive');
+            setStatus('已关闭后端引擎，使用本地模式');
+        }
+    };
+
+    const handleTest = async () => {
+        if (!token.trim()) { setStatus('请先填写通行证密码'); return; }
+        setStatus('连接中...');
+        const backendUrl = localStorage.getItem('csyos_backend_url') || 'http://localhost:6677';
+        try {
+            const resp = await fetch(`${backendUrl}/health`, {
+                headers: { 'Authorization': `Bearer ${token.trim()}` },
+                signal: AbortSignal.timeout(5000),
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                setStatus(`✅ 已连接 · ${data.memoryCount || 0} 条记忆 · 延迟 ${Date.now() - data.timestamp > 0 ? '<1s' : '正常'}`);
+            } else {
+                setStatus(`❌ 连接失败 (HTTP ${resp.status})${resp.status === 401 ? ' — 密码错误' : ''}`);
+            }
+        } catch (e: any) {
+            setStatus(`❌ 无法连接 · ${e.message?.includes('timeout') ? '连接超时' : '服务器离线或地址错误'}`);
+        }
+    };
+
+    const handleSync = async () => {
+        if (!token.trim()) { setStatus('请先填写通行证密码'); return; }
+        setStatus('正在打包本地记忆...');
+        try {
+            const chars = await DB.getAllCharacters();
+            let totalSynced = 0;
+            for (const c of chars) {
+                const mems = await DB.getAllVectorMemories(c.id);
+                if (mems.length > 0) {
+                    setStatus(`正在同步 ${c.name} 的 ${mems.length} 条记忆...`);
+                    const result = await pushMemories(c.id, mems);
+                    if (result) totalSynced += result.synced;
+                }
+            }
+            setStatus(`✅ 同步完成！共上传 ${totalSynced} 条记忆到云端。`);
+        } catch (e: any) {
+            setStatus(`❌ 同步失败: ${e.message}`);
+        }
+    };
+
+    return (
+        <section className="relative overflow-hidden bg-[#eef0f7]/70 backdrop-blur-sm rounded-3xl p-6 shadow-sm border border-[#d0d4e8]/60 mt-4">
+            <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-gradient-to-br from-[#c0c8e8]/30 to-[#d4d8f0]/30 blur-2xl pointer-events-none" />
+            
+            <div className="relative flex items-center gap-3 mb-5">
+                <div className="p-2.5 bg-gradient-to-br from-[#c0c8e8]/60 to-[#d0d4e8]/60 backdrop-blur-sm rounded-2xl text-[#6068a0]">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z" /></svg>
+                </div>
+                <div>
+                    <h2 className="text-sm font-semibold text-[#525a8a] tracking-wider">独立后端引擎</h2>
+                    <p className="text-[10px] text-[#8088b8]">可选 · 启用后记忆检索在独立服务器运行</p>
+                </div>
+            </div>
+
+            <div className="relative space-y-3">
+                <div>
+                    <label className="text-[10px] font-bold text-[#8088b8] uppercase tracking-widest mb-1.5 block pl-1">通行证密码</label>
+                    <input
+                        type="password"
+                        value={token}
+                        onChange={e => setToken(e.target.value)}
+                        placeholder="留空 = 使用本地模式（不需要后端）"
+                        className="w-full bg-white/60 border border-[#d0d4e8]/60 rounded-xl px-4 py-2.5 text-sm font-mono focus:bg-white transition-all"
+                    />
+                    <p className="text-[9px] text-[#8088b8] mt-1 pl-1">
+                        填写后自动启用后端引擎（支持图联想等高级功能）。
+                        留空则使用本地模式，功能完全不受影响。
+                    </p>
+                </div>
+
+                <div className="flex gap-2">
+                    <button onClick={handleSave} className="flex-1 py-2.5 rounded-2xl font-bold text-white shadow-lg shadow-[#6068a0]/20 bg-gradient-to-r from-[#6068a0] to-[#7078b0] active:scale-95 transition-all text-sm">保存</button>
+                    <button onClick={handleTest} className="flex-1 py-2.5 rounded-2xl font-bold bg-white border border-[#d0d4e8] text-[#6068a0] active:scale-95 transition-all text-sm">测试连接</button>
+                    {status.includes('✅ 已连接') && (
+                        <button onClick={handleSync} className="flex-[1.5] py-2.5 rounded-2xl font-bold bg-[#e6eaf5] text-[#525a8a] active:scale-95 transition-all text-sm flex items-center justify-center gap-1 border border-[#d0d4e8]/50">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>
+                            一键上传记忆
+                        </button>
+                    )}
+                </div>
+
+                {status && (
+                    <p className={`text-xs px-1 ${status.includes('✅') ? 'text-emerald-600' : status.includes('❌') ? 'text-red-500' : 'text-[#8088b8]'}`}>
+                        {status}
+                    </p>
+                )}
+            </div>
+
+            <div className="relative mt-3">
+                <div className={`py-2.5 rounded-2xl text-center text-[10px] font-bold backdrop-blur-sm ${token ? 'bg-[#e6eaf5]/60 text-[#6068a0] border border-[#d0d4e8]/50' : 'bg-[#f0ebe5]/60 text-[#b8aaa0] border border-[#e5ddd4]/50'}`}>
+                    <div className="text-xs mb-0.5 opacity-70">{token ? '●' : '○'}</div>
+                    {token ? '后端引擎已启用' : '本地模式'}
                 </div>
             </div>
         </section>
