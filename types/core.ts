@@ -29,6 +29,7 @@ export enum AppID {
     Zhaixinglou = 'zhaixinglou', // 摘星楼 - Astrology & Divination
     CsyManual = 'csy_manual', // CSY二改版使用手册
     VoiceCall = 'voice_call', // 语音通话
+    CognitiveNetwork = 'cognitive_network', // 认知网络独立App
 }
 
 export interface SystemLog {

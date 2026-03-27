@@ -216,6 +216,33 @@ export function applyCrossEffects(state: Record<HormoneKey, number>): Record<Hor
         s.serotonin = Math.min(0.95, s.serotonin + uplift);
     }
 
+    // ── 【仿生补完】皮质醇↑ → 压低多巴胺 (持续高压→快感缺失/anhedonia) ──
+    // 生理依据: 慢性压力抑制 VTA→NAc 中脑边缘多巴胺通路
+    if (s.cortisol > 0.7) {
+        const anhedonia = (s.cortisol - 0.7) * 0.35; // 最大削减: (0.95-0.7)*0.35 ≈ 8.75%
+        s.dopamine *= (1 - anhedonia);
+    }
+
+    // ── 【仿生补完】皮质醇↑ → 精力消耗 (肾上腺疲劳效应) ──
+    // 生理依据: 持续 HPA 轴激活消耗身体储备
+    if (s.cortisol > 0.7) {
+        s.energy -= (s.cortisol - 0.7) * 0.12;
+    }
+
+    // ── 【仿生补完】多巴胺↑ → 催产素微升 (奖赏+亲密协同="坠入爱河"效应) ──
+    // 生理依据: 多巴胺奖赏通路与催产素在 VTA 存在正向交互
+    if (s.dopamine > 0.65) {
+        const bonding = (s.dopamine - 0.65) * 0.12;
+        s.oxytocin = Math.min(0.95, s.oxytocin + bonding);
+    }
+
+    // ── 【仿生补完】血清素↑ → 多巴胺微降 (SSRI "情感平淡" 效应) ──
+    // 生理依据: 5-HT2C 受体激活抑制中脑多巴胺释放
+    if (s.serotonin > 0.7) {
+        const blunting = (s.serotonin - 0.7) * 0.15;
+        s.dopamine *= (1 - blunting);
+    }
+
     // ── 多巴胺↑ → 能量消耗加速 (兴奋是耗能的) ──
     if (s.dopamine > 0.7) {
         s.energy -= (s.dopamine - 0.7) * 0.15;
@@ -248,14 +275,30 @@ export function applyCrossEffects(state: Record<HormoneKey, number>): Record<Hor
 /**
  * 昼夜节律精力恢复率曲线（时/h）。
  * 比简单的 isLateNight 二值判断更自然。
+ *
+ * @param isUserActive 用户是否正在活跃（发消息），凌晨时段影响恢复/消耗判定
  */
-function getCircadianRecoveryRate(hour: number): number {
-    if (hour >= 6 && hour < 10)  return 0.10;  // 晨间恢复高峰
-    if (hour >= 10 && hour < 14) return 0.06;  // 稳态
-    if (hour >= 14 && hour < 16) return 0.04;  // 午后低谷
-    if (hour >= 16 && hour < 22) return 0.06;  // 稳态
-    if (hour >= 22 || hour < 1)  return 0.03;  // 夜间下降
-    /* 1:00 ~ 6:00 */           return 0.08;  // 睡眠恢复
+function getCircadianRecoveryRate(hour: number, isUserActive: boolean = false): number {
+    if (hour >= 6 && hour < 10)  return 0.10;   // 晨间恢复高峰
+    if (hour >= 10 && hour < 14) return 0.06;   // 稳态
+    if (hour >= 14 && hour < 16) return 0.04;   // 午后低谷
+    if (hour >= 16 && hour < 22) return 0.06;   // 稳态
+    if (hour >= 22 || hour < 1)  return isUserActive ? -0.03 : 0.02;  // 深夜: 熬夜反而消耗 vs 入睡微恢复
+    /* 1:00 ~ 6:00 */           return isUserActive ? -0.05 : 0.08;  // 凌晨: 熬夜严重消耗 vs 深度睡眠恢复
+}
+
+/**
+ * 【仿生补完】皮质醇昼夜节律基线偏移。
+ * 真实人体皮质醇在凌晨 4-6 点开始上升，上午 8-9 点达峰，之后逐渐下降。
+ * 返回对 cortisol 基线 (0.5) 的偏移量。
+ */
+function getCortisolCircadianShift(hour: number): number {
+    if (hour >= 6 && hour < 10)  return +0.05;  // 晨峰 (CAR: Cortisol Awakening Response)
+    if (hour >= 10 && hour < 14) return +0.02;  // 上午稳态
+    if (hour >= 14 && hour < 18) return  0.00;  // 下午回归
+    if (hour >= 18 && hour < 22) return -0.02;  // 傍晚下降
+    if (hour >= 22 || hour < 4)  return -0.05;  // 夜间低谷
+    /* 4:00 ~ 6:00 */           return +0.02;  // 黎明前开始回升
 }
 
 /**
@@ -268,6 +311,7 @@ function getCircadianRecoveryRate(hour: number): number {
 export function applyTimeDecay(
     state: Record<HormoneKey, number>,
     elapsedMs: number,
+    isUserActive: boolean = false,
 ): Record<HormoneKey, number> {
     const s = { ...state };
     const hours = elapsedMs / 3600000;
@@ -278,19 +322,26 @@ export function applyTimeDecay(
     // 【Bug 修复】在衰减前保存原始 cortisol，用于后续能量惩罚
     const originalCortisol = s.cortisol;
 
+    const currentHour = new Date().getHours();
+
     for (const key of HORMONE_KEYS) {
         if (key === 'energy') continue; // 能量有专门的恢复逻辑
         const halfLife = HALF_LIFE_HOURS[key];
         if (!isFinite(halfLife)) continue;
 
+        // 【仿生补完】cortisol 使用昼夜节律偏移后的基线
+        const baseline = key === 'cortisol'
+            ? BASELINE + getCortisolCircadianShift(currentHour)
+            : BASELINES[key];
+
         // 回归基线
         const decayFactor = Math.pow(0.5, hours / halfLife);
-        s[key] = BASELINE + (s[key] - BASELINE) * decayFactor;
+        s[key] = baseline + (s[key] - baseline) * decayFactor;
     }
 
     // ── 能量恢复逻辑（特殊处理）──
-    const currentHour = new Date().getHours();
-    const recoveryRate = getCircadianRecoveryRate(currentHour);
+    // 【仿生补完】凌晨时段区分睡眠恢复 vs 熬夜消耗
+    const recoveryRate = getCircadianRecoveryRate(currentHour, isUserActive);
     let energyDelta = hours * recoveryRate;
 
     // 【Bug 修复】使用原始 cortisol 判断能量惩罚（"带着气睡觉"）
@@ -317,6 +368,10 @@ export function applyTimeDecay(
 const INERTIA_STREAK_THRESHOLD = 3;
 /** 每多 1 轮 streak，down α 乘以此系数（越小 = 越难回归） */
 const INERTIA_DAMPING = 0.85;
+/** 【仿生补完】刺激适应: streak > 此阈值时，上升速率也开始衰减（脱敏/habituation） */
+const HABITUATION_STREAK_THRESHOLD = 6;
+/** 每多 1 轮 streak 超过适应阈值，up α 乘以此系数 */
+const HABITUATION_DAMPING = 0.90;
 
 /**
  * 从副模型的语义感知到最终的 InternalState，一步到位。
@@ -357,8 +412,9 @@ export function computeNewState(
     };
 
     // Step 0: 时间衰减（在 EMA 之前，基于上次更新到现在的时间差）
+    // isUserActive = true（用户正在发消息 → 不在睡觉）
     const elapsed = now - previous.updatedAt;
-    const decayed = applyTimeDecay(prevHormones, elapsed);
+    const decayed = applyTimeDecay(prevHormones, elapsed, true);
 
     // Step 1: 语义标签 → 目标数值
     const targets = mapSenseToTargets(sense);
@@ -370,21 +426,30 @@ export function computeNewState(
         }
     }
 
-    // Step 2: EMA 平滑（新旧加权），应用情绪惯性
+    // Step 2: EMA 平滑（新旧加权），应用情绪惯性 + 刺激适应
     const prevStreaks = previous.streaks || {};
     const smoothed = {} as Record<HormoneKey, number>;
     for (const key of HORMONE_KEYS) {
         const rates = EMA_RATES[key];
+        let upRate = rates.up;
         let downRate = rates.down;
 
-        // 情绪惯性: streak 超过阈值时，减缓回归速度
         const streak = prevStreaks[key] || 0;
+
+        // 情绪惯性: streak 超过阈值时，减缓回归速度
         if (streak > INERTIA_STREAK_THRESHOLD) {
             const dampingRounds = streak - INERTIA_STREAK_THRESHOLD;
             downRate *= Math.pow(INERTIA_DAMPING, dampingRounds);
         }
 
-        smoothed[key] = applyEMA(decayed[key], targets[key], rates.up, downRate);
+        // 【仿生补完】刺激适应 (habituation): 同方向刺激持续过久，up α 也衰减
+        // 生理依据: 受体下调 (receptor downregulation) — 持续暴露于同一递质导致受体脱敏
+        if (streak > HABITUATION_STREAK_THRESHOLD) {
+            const habRounds = streak - HABITUATION_STREAK_THRESHOLD;
+            upRate *= Math.pow(HABITUATION_DAMPING, habRounds);
+        }
+
+        smoothed[key] = applyEMA(decayed[key], targets[key], upRate, downRate);
     }
 
     // Step 3: 互抑修正（化学反应）

@@ -86,7 +86,7 @@ interface CooldownState {
     todayDate: string;
 }
 
-interface LLMDecision {
+export interface LLMDecision {
     action: 'none' | 'send' | 'call' | 'think';
     topic?: string;      // 副模型建议的话题方向
     reason?: string;     // 发送动机
@@ -1046,3 +1046,20 @@ export class AutonomousAgent {
         console.log('🤖 [Agent] Stopped');
     }
 }
+
+/**
+ * 后端决策执行入口 — 供 OSContext SSE 监听器调用。
+ * 当后端 Agent 决策 action='send' 时，前端调用此函数用主模型生成消息。
+ */
+export async function executeBackendDecision(
+    charId: string,
+    char: CharacterProfile,
+    decision: LLMDecision,
+): Promise<void> {
+    const recentMsgs = await DB.getRecentMessagesByCharId(charId, 30);
+    const success = await executeAction(charId, char, decision, recentMsgs);
+    if (success) {
+        console.log(`🤖 [Agent] Backend decision executed: action=${decision.action}`);
+    }
+}
+

@@ -7,13 +7,12 @@ import type { SettingsPanel } from './settings/SettingsMenu';
 // Lazy load each settings panel for optimal performance
 const ApiSettings = React.lazy(() => import('./settings/ApiSettings'));
 const SubApiSettings = React.lazy(() => import('./settings/SubApiSettings'));
-const RealtimeSettings = React.lazy(() => import('./settings/RealtimeSettings'));
-const TtsSettings = React.lazy(() => import('./settings/TtsSettings'));
+const RealtimeSettings = React.lazy(() => import('./settings/realtime'));
+const TtsSettings = React.lazy(() => import('./settings/tts'));
 const SttSettings = React.lazy(() => import('./settings/SttSettings'));
 const EmbeddingSettings = React.lazy(() => import('./settings/EmbeddingSettings'));
 const DataSettings = React.lazy(() => import('./settings/DataSettings'));
 const AgentSettings = React.lazy(() => import('./settings/AgentSettings'));
-const CognitiveNetworkSettings = React.lazy(() => import('./settings/CognitiveNetworkSettings'));
 
 const panelComponents: Record<Exclude<SettingsPanel, 'menu'>, React.LazyExoticComponent<React.FC>> = {
     api: ApiSettings,
@@ -24,7 +23,6 @@ const panelComponents: Record<Exclude<SettingsPanel, 'menu'>, React.LazyExoticCo
     embedding: EmbeddingSettings,
     data: DataSettings,
     agent: AgentSettings,
-    cognitive: CognitiveNetworkSettings,
 };
 
 const panelTitles: Record<Exclude<SettingsPanel, 'menu'>, string> = {
@@ -35,7 +33,6 @@ const panelTitles: Record<Exclude<SettingsPanel, 'menu'>, string> = {
     tts: '语音合成',
     stt: '语音识别',
     embedding: '向量记忆引擎',
-    cognitive: '认知网络',
     agent: '自律代理',
 };
 

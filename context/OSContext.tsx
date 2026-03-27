@@ -709,22 +709,250 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
         return () => { if (schedulerRef.current) clearInterval(schedulerRef.current); };
     }, [isDataLoaded, characters]);
 
-    // --- Autonomous Agent (自主决策引擎) ---
+    // --- Autonomous Agent (自主决策引擎 — 后端优先 + 本地 Fallback) ---
     useEffect(() => {
         if (!isDataLoaded || !activeCharacterId) return;
         const char = characters.find(c => c.id === activeCharacterId);
         if (!char) return;
 
-        // 从 localStorage 读取副 API 配置（与 useChatAI 中的 secondaryConfig 保持一致）
+        // 从 localStorage 读取副 API 配置
         const subKey = localStorage.getItem('sub_api_key');
         const subUrl = localStorage.getItem('sub_api_base_url');
         const subModel = localStorage.getItem('sub_api_model');
-        if (!subKey || !subUrl || !subModel) return; // 没配副 API 则不启动
+        if (!subKey || !subUrl || !subModel) return;
 
         const secondaryApi = { baseUrl: subUrl, apiKey: subKey, model: subModel };
-        const agent = new AutonomousAgent();
-        const cleanup = agent.start(activeCharacterId, char, secondaryApi);
-        return cleanup;
+
+        // ═══ 尝试后端模式 ═══
+        const backendToken = localStorage.getItem('csyos_backend_token');
+        const backendUrl = localStorage.getItem('csyos_backend_url') || 'http://localhost:6677';
+        let sseSource: EventSource | null = null;
+        let contextPushTimer: ReturnType<typeof setInterval> | null = null;
+        let localCleanup: (() => void) | null = null;
+        let usingBackend = false;
+
+        // P1-b: 完整角色数据 + realtimeConfig + groups（后端 chatPrompts 构建 Prompt 所需）
+        const buildContextSnapshot = () => ({
+            charId: activeCharacterId,
+            char: {
+                id: char.id,
+                name: char.name,
+                avatar: char.avatar,
+                description: char.description,
+                systemPrompt: char.systemPrompt,
+                contextLimit: char.contextLimit,
+                moodState: char.moodState,
+                // 以下字段供后端 chatPrompts 全量构建 Prompt
+                worldview: char.worldview,
+                impression: char.impression,
+                mountedWorldbooks: char.mountedWorldbooks,
+                memories: char.memories,
+                refinedMemories: char.refinedMemories,
+                activeMemoryMonths: char.activeMemoryMonths,
+                vectorMemoryEnabled: char.vectorMemoryEnabled,
+                vectorMemoryMode: char.vectorMemoryMode,
+                vectorMemoryTakeover: char.vectorMemoryTakeover,
+                hideBeforeMessageId: char.hideBeforeMessageId,
+                xhsEnabled: char.xhsEnabled,
+            },
+            recentMessages: [] as any[],  // Will be populated via DB call
+            userProfile: { name: userProfile.name, avatar: userProfile.avatar, bio: userProfile.bio },
+            pendingEvents: [],
+            updatedAt: Date.now(),
+            // P1-b: 后端主模型 Prompt 所需的扩展数据
+            groups: groups,
+            realtimeConfig: realtimeConfig,
+        });
+
+        const tryStartBackend = async () => {
+            if (!backendToken) return false;
+
+            try {
+                // 获取最近消息
+                const recentMsgs = await DB.getRecentMessagesByCharId(activeCharacterId, 30);
+                const snapshot = buildContextSnapshot();
+                snapshot.recentMessages = recentMsgs.map(m => ({
+                    id: m.id,
+                    charId: m.charId,
+                    role: m.role,
+                    type: m.type,
+                    content: m.content,
+                    timestamp: m.timestamp,
+                }));
+
+                const resp = await fetch(`${backendUrl}/api/agent/start`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${backendToken}`,
+                    },
+                    body: JSON.stringify({
+                        charId: activeCharacterId,
+                        apiConfig: secondaryApi,
+                        // P1-b: 主模型配置（后端用来直接生成消息，取自当前的 apiConfig state）
+                        mainApiConfig: {
+                            baseUrl: apiConfig.baseUrl,
+                            apiKey: apiConfig.apiKey,
+                            model: apiConfig.model,
+                            useGeminiJailbreak: localStorage.getItem('use_gemini_jailbreak') === 'true',
+                        },
+                        contextSnapshot: snapshot,
+                        debug: localStorage.getItem('autonomous_debug') === 'true',
+                    }),
+                    signal: AbortSignal.timeout(5000),
+                });
+
+                if (!resp.ok) return false;
+
+                console.log('🤖 [Agent] Started (backend mode)');
+                usingBackend = true;
+
+                // SSE: 监听后端决策 (通过 URL 参数传 token，因为 EventSource 不支持 headers)
+                sseSource = new EventSource(`${backendUrl}/api/agent/events?token=${backendToken}`);
+                // P1-b: 后端已生成完整消息 → 前端通过预制消息管道存+显示
+                sseSource.addEventListener('generated_message', async (evt: MessageEvent) => {
+                    try {
+                        const { content, charId: cId } = JSON.parse(evt.data);
+                        if (cId !== activeCharacterId) return;
+                        console.log(`🤖 [Agent] Backend generated message received (${content.length} chars)`);
+
+                        // 按换行拆分为多条气泡（复用 autonomousAgent 的模式）
+                        const bubbles = content
+                            .split('\n')
+                            .map((line: string) => line.trim())
+                            .filter((line: string) => line.length > 0);
+
+                        if (bubbles.length === 0) return;
+
+                        const now = Date.now();
+                        const BUBBLE_INTERVAL_MS = 3000;
+
+                        for (let i = 0; i < bubbles.length; i++) {
+                            await DB.saveScheduledMessage({
+                                id: `backend-auto-${now}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+                                charId: cId,
+                                content: bubbles[i],
+                                dueAt: now + i * BUBBLE_INTERVAL_MS,
+                                createdAt: now,
+                            });
+                        }
+                        console.log(`🤖 [Agent] Scheduled ${bubbles.length} bubble(s) from backend`);
+                    } catch (err) {
+                        console.error('🤖 [Agent] Failed to handle generated message:', err);
+                    }
+                });
+
+                // 回退路径：后端只发决策（主模型失败时），前端自己调主模型
+                sseSource.addEventListener('decision', async (evt: MessageEvent) => {
+                    try {
+                        const { decision } = JSON.parse(evt.data);
+                        console.log(`🤖 [Agent] Backend decision received (fallback): action=${decision.action}`);
+
+                        if (decision.action === 'send') {
+                            const { executeBackendDecision } = await import('../utils/autonomousAgent');
+                            await executeBackendDecision(activeCharacterId, char, decision);
+                        } else if (decision.action === 'call') {
+                            window.dispatchEvent(new CustomEvent('autonomous-call', {
+                                detail: { charId: activeCharacterId, reason: decision.reason || '想你了' },
+                            }));
+                        }
+                    } catch (err) {
+                        console.error('🤖 [Agent] Failed to handle backend decision:', err);
+                    }
+                });
+
+                // 定期推送上下文更新 (每5分钟)
+                contextPushTimer = setInterval(async () => {
+                    try {
+                        const freshChar = characters.find(c => c.id === activeCharacterId);
+                        if (!freshChar) return;
+                        const recentMsgs = await DB.getRecentMessagesByCharId(activeCharacterId, 30);
+                        const snapshot = buildContextSnapshot();
+                        snapshot.char = {
+                            id: freshChar.id,
+                            name: freshChar.name,
+                            avatar: freshChar.avatar,
+                            description: freshChar.description,
+                            systemPrompt: freshChar.systemPrompt,
+                            contextLimit: freshChar.contextLimit,
+                            moodState: freshChar.moodState,
+                            // P1-b: 完整字段（与 buildContextSnapshot 保持一致）
+                            worldview: freshChar.worldview,
+                            impression: freshChar.impression,
+                            mountedWorldbooks: freshChar.mountedWorldbooks,
+                            memories: freshChar.memories,
+                            refinedMemories: freshChar.refinedMemories,
+                            activeMemoryMonths: freshChar.activeMemoryMonths,
+                            vectorMemoryEnabled: freshChar.vectorMemoryEnabled,
+                            vectorMemoryMode: freshChar.vectorMemoryMode,
+                            vectorMemoryTakeover: freshChar.vectorMemoryTakeover,
+                            hideBeforeMessageId: freshChar.hideBeforeMessageId,
+                            xhsEnabled: freshChar.xhsEnabled,
+                        };
+                        snapshot.recentMessages = recentMsgs.map(m => ({
+                            id: m.id,
+                            charId: m.charId,
+                            role: m.role,
+                            type: m.type,
+                            content: m.content,
+                            timestamp: m.timestamp,
+                        }));
+                        await fetch(`${backendUrl}/api/agent/context`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${backendToken}`,
+                            },
+                            body: JSON.stringify(snapshot),
+                        });
+                    } catch { /* ignore push failures */ }
+                }, 5 * 60 * 1000);
+
+                return true;
+            } catch (err) {
+                console.warn('🤖 [Agent] Backend unavailable, falling back to local mode:', (err as Error).message);
+                return false;
+            }
+        };
+
+        // ═══ 启动逻辑：后端优先 → 本地 Fallback ═══
+        const startAgent = async () => {
+            const backendStarted = await tryStartBackend();
+            if (!backendStarted) {
+                // 本地 Fallback
+                const agent = new AutonomousAgent();
+                localCleanup = agent.start(activeCharacterId, char, secondaryApi);
+                console.log('🤖 [Agent] Started (local fallback mode)');
+            }
+        };
+
+        startAgent();
+
+        return () => {
+            // 清理后端连接
+            if (sseSource) {
+                sseSource.close();
+                sseSource = null;
+            }
+            if (contextPushTimer) {
+                clearInterval(contextPushTimer);
+                contextPushTimer = null;
+            }
+            if (usingBackend && backendToken) {
+                fetch(`${backendUrl}/api/agent/stop`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${backendToken}`,
+                    },
+                }).catch(() => {});
+            }
+            // 清理本地 Agent
+            if (localCleanup) {
+                localCleanup();
+                localCleanup = null;
+            }
+        };
     }, [isDataLoaded, activeCharacterId, characters, agentReloadCounter]);
 
     const updateTheme = async (updates: Partial<OSTheme>) => {

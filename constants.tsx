@@ -28,6 +28,7 @@ import {
   Star,
   Notebook,
   Phone,
+  Brain,
 
 } from '@phosphor-icons/react';
 
@@ -60,6 +61,7 @@ export const Icons: Record<string, React.FC<{ className?: string }>> = {
   Zhaixinglou: ({ className }) => <Star className={className} weight="fill" />,
   CsyManual: ({ className }) => <Notebook className={className} weight="bold" />,
   VoiceCall: ({ className }) => <Phone className={className} weight="bold" />,
+  CognitiveNetwork: ({ className }) => <Brain className={className} weight="bold" />,
 
 };
 
@@ -91,6 +93,7 @@ export const INSTALLED_APPS: AppConfig[] = [
   { id: AppID.SpecialMoments, name: '特别时光', icon: 'SpecialMoments', color: 'pink' },
   { id: AppID.Zhaixinglou, name: '摘星楼', icon: 'Zhaixinglou', color: 'red' },
   { id: AppID.VoiceCall, name: '语音通话', icon: 'VoiceCall', color: 'slate' },
+  { id: AppID.CognitiveNetwork, name: '认知网络', icon: 'CognitiveNetwork', color: 'violet' },
 
 ];
 

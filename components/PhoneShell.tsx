@@ -41,6 +41,7 @@ const BrowserApp = React.lazy(() => import('../apps/BrowserApp'));
 const VoiceCallApp = React.lazy(() => import('../apps/VoiceCallApp'));
 const ZhaixinglouApp = React.lazy(() => import('../apps/zhaixinglou/ZhaixinglouApp'));
 const CsyManualApp = React.lazy(() => import('../apps/CsyManualApp'));
+const CognitiveNetworkApp = React.lazy(() => import('../apps/CognitiveNetworkApp'));
 
 const LazyValentineEvent = React.lazy(() => import('./ValentineEvent').then(m => ({
   default: m.SpecialMomentsApp
@@ -396,6 +397,7 @@ const PhoneShell: React.FC = () => {
       case AppID.SpecialMoments: return <LazyValentineEvent />;
       case AppID.Zhaixinglou: return <ZhaixinglouApp />;
       case AppID.CsyManual: return <CsyManualApp />;
+      case AppID.CognitiveNetwork: return <CognitiveNetworkApp />;
 
       case AppID.Launcher:
       default: return <Launcher />;
