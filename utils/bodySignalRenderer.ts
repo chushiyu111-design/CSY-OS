@@ -2,12 +2,13 @@
  * Body Signal Renderer — 躯体信号渲染器
  *
  * 将 InternalState 的 7 维数值翻译成注入 system prompt 的文字。
- * 支持两种渲染模式，用于 A/B 测试：
+ * 支持三种渲染模式：
+ *   - 'raw':         原始信号模式 — 化学缩写 + 数值 + 方向箭头（推荐默认）
  *   - 'wordLibrary': 词库模式 — 躯体化描述（"胸口发紧"）
  *   - 'quantified':  量化模式 — 进度条 + 人话标签
  *
  * 设计原则：
- *   - 只描述感受，不贴情绪标签
+ *   - raw 模式: 给数据不给结论，让主模型自主涌现行为
  *   - 全平静时不注入
  *   - 同档位有多条候选描述，随机选取避免免疫（词库模式）
  */
@@ -15,13 +16,14 @@
 import { InternalState } from '../types/character';
 import { hasSignificantDeviation } from './hormoneDynamics';
 
-export type BodySignalMode = 'wordLibrary' | 'quantified';
+export type BodySignalMode = 'raw' | 'wordLibrary' | 'quantified';
 
 /** 获取当前渲染模式 */
 export function getBodySignalMode(): BodySignalMode {
     const stored = localStorage.getItem('body_signal_mode');
     if (stored === 'quantified') return 'quantified';
-    return 'wordLibrary'; // 默认词库模式
+    if (stored === 'wordLibrary') return 'wordLibrary';
+    return 'raw'; // 默认原始信号模式
 }
 
 /** 设置渲染模式 */
@@ -33,12 +35,69 @@ export function setBodySignalMode(mode: BodySignalMode): void {
 //  主入口
 // ═══════════════════════════════════════════════════════════════
 
-export function renderBodySignals(state: InternalState): string {
+export function renderBodySignals(state: InternalState, charName?: string): string {
     if (!hasSignificantDeviation(state)) return '';
     const mode = getBodySignalMode();
-    return mode === 'quantified'
-        ? renderQuantified(state)
-        : renderWordLibrary(state);
+    if (mode === 'raw') return renderRaw(state, charName || '你');
+    if (mode === 'quantified') return renderQuantified(state);
+    return renderWordLibrary(state);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  模式 C: 原始信号模式 — 化学缩写 + 数值 + 方向箭头
+// ═══════════════════════════════════════════════════════════════
+
+/** 各维度基线值 */
+const BASELINES: Record<string, number> = {
+    dopamine: 0.5, serotonin: 0.5, cortisol: 0.5,
+    oxytocin: 0.5, norepinephrine: 0.5, endorphin: 0.5,
+    energy: 0.7,
+};
+
+/** 化学缩写映射 */
+const ABBREV: Record<string, string> = {
+    dopamine: 'DA', serotonin: '5HT', cortisol: 'CORT',
+    oxytocin: 'OXT', norepinephrine: 'NE', endorphin: 'END',
+    energy: 'E',
+};
+
+/** 偏离基线的方向箭头 */
+function getArrow(value: number, baseline: number): string {
+    const diff = value - baseline;
+    if (diff > 0.12) return '↑';
+    if (diff < -0.12) return '↓';
+    return '';
+}
+
+function renderRaw(state: InternalState, charName: string): string {
+    const dims: { key: string; value: number }[] = [
+        { key: 'dopamine', value: state.dopamine },
+        { key: 'serotonin', value: state.serotonin },
+        { key: 'cortisol', value: state.cortisol },
+        { key: 'oxytocin', value: state.oxytocin },
+        { key: 'norepinephrine', value: state.norepinephrine },
+        { key: 'endorphin', value: state.endorphin },
+        { key: 'energy', value: state.energy },
+    ];
+
+    // 仅输出偏离基线的维度
+    const parts: string[] = [];
+    for (const d of dims) {
+        const baseline = BASELINES[d.key];
+        const deviation = Math.abs(d.value - baseline);
+        if (deviation > 0.12) {
+            const abbrev = ABBREV[d.key];
+            const arrow = getArrow(d.value, baseline);
+            parts.push(`${abbrev}=${d.value.toFixed(2)}${arrow}`);
+        }
+    }
+
+    if (parts.length === 0) return '';
+
+    return `[内分泌·当前浓度]
+${parts.join(' ')}
+
+${charName}，虽然你不知道，但是体检单上显示了你此时的激素水平——它们潜移默化地改变着你的行为。`;
 }
 
 // ═══════════════════════════════════════════════════════════════

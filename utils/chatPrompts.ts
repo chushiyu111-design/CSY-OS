@@ -94,7 +94,7 @@ export const ChatPrompts = {
         // ====== 向量记忆检索 — 紧贴记忆系统注入，形成「脉络 + 浮现」完整区块 ======
         if (char.vectorMemoryEnabled && embeddingApiKey) {
             try {
-                const recall = await VectorMemoryRetriever.retrieve(char.id, currentMsgs, embeddingApiKey, apiConfig, char.moodState as any);
+                const recall = await VectorMemoryRetriever.retrieve(char.id, char.name, userProfile.name, currentMsgs, embeddingApiKey, apiConfig, char.moodState as any);
                 if (recall) {
                     baseSystemPrompt += '\n' + recall + '\n';
                 }

@@ -139,6 +139,8 @@ function addLlmHeaders(
  */
 export async function tryBackendRetrieval(
     charId: string,
+    charName: string,
+    userName: string,
     contextMsgs: { role: string; content: string; type?: string }[],
     currentHormoneState?: Record<string, number>,
 ): Promise<{ fallback: boolean; memories: string }> {
@@ -165,7 +167,7 @@ export async function tryBackendRetrieval(
         const resp = await fetch(`${url}/api/retrieval/search`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ charId, contextMsgs, currentHormoneState }),
+            body: JSON.stringify({ charId, charName, userName, contextMsgs, currentHormoneState }),
             signal: AbortSignal.timeout(15000), // 15s timeout for retrieval
         });
 

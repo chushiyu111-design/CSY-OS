@@ -346,6 +346,8 @@ export const VectorMemoryRetriever = {
      */
     async retrieve(
         charId: string,
+        charName: string,
+        userName: string,
         currentMsgs: Message[],
         embeddingApiKey: string,
         _apiConfig?: APIConfig,  // reserved for future use
@@ -361,7 +363,7 @@ export const VectorMemoryRetriever = {
                     .filter(m => (m.role === 'user' || m.role === 'assistant') && (m.type === 'text' || m.type === 'call_log'))
                     .slice(-5)
                     .map(m => ({ role: m.role, content: m.content, type: m.type }));
-                const { fallback, memories } = await tryBackendRetrieval(charId, simpleMsgs, hormoneSnapshot);
+                const { fallback, memories } = await tryBackendRetrieval(charId, charName, userName, simpleMsgs, hormoneSnapshot);
                 if (!fallback) {
                     // Backend successfully handled the request (even if it found 0 memories)
                     if (memories) console.log('🔗 [VectorRetriever] Using backend retrieval result');

@@ -808,7 +808,7 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 usingBackend = true;
 
                 // SSE: 监听后端决策 (通过 URL 参数传 token，因为 EventSource 不支持 headers)
-                sseSource = new EventSource(`${backendUrl}/api/agent/events?token=${backendToken}`);
+                sseSource = new EventSource(`${backendUrl}/api/agent/events?token=${backendToken}&charId=${activeCharacterId}`);
                 // P1-b: 后端已生成完整消息 → 前端通过预制消息管道存+显示
                 sseSource.addEventListener('generated_message', async (evt: MessageEvent) => {
                     try {
@@ -945,6 +945,7 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${backendToken}`,
                     },
+                    body: JSON.stringify({ charId: activeCharacterId }),
                 }).catch(() => {});
             }
             // 清理本地 Agent

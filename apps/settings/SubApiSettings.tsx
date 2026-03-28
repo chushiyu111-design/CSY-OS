@@ -19,7 +19,7 @@ const SubApiSettings: React.FC = () => {
     const [subPresets, setSubPresets] = useState<Array<{ id: string; name: string; config: { baseUrl: string; apiKey: string; model: string } }>>(() => {
         try { return JSON.parse(localStorage.getItem('sub_api_presets') || '[]'); } catch { return []; }
     });
-    const [signalMode, setSignalMode] = useState(() => localStorage.getItem('body_signal_mode') || 'wordLibrary');
+    const [signalMode, setSignalMode] = useState(() => localStorage.getItem('body_signal_mode') || 'raw');
 
     const handleSaveSubApi = () => {
         localStorage.setItem('sub_api_key', subKey);
@@ -204,6 +204,18 @@ const SubApiSettings: React.FC = () => {
 
                 <div className="flex gap-2">
                     <button
+                        onClick={() => { localStorage.setItem('body_signal_mode', 'raw'); setSignalMode('raw'); }}
+                        className={`flex-1 py-3 px-3 rounded-2xl text-xs font-bold border transition-all ${signalMode === 'raw'
+                            ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white border-purple-300 shadow-lg shadow-purple-500/20'
+                            : 'bg-white/50 text-[#8b7e64] border-[#e8e0cc]/60 active:bg-[#f0eadc]'}`}
+                    >
+                        <div className="text-center">
+                            <div className="text-sm mb-1">🧬</div>
+                            <div>原始信号</div>
+                            <div className={`text-[9px] mt-0.5 ${signalMode === 'raw' ? 'text-purple-100' : 'text-[#b0a48a]'}`}>推荐</div>
+                        </div>
+                    </button>
+                    <button
                         onClick={() => { localStorage.setItem('body_signal_mode', 'wordLibrary'); setSignalMode('wordLibrary'); }}
                         className={`flex-1 py-3 px-3 rounded-2xl text-xs font-bold border transition-all ${signalMode === 'wordLibrary'
                             ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white border-purple-300 shadow-lg shadow-purple-500/20'
@@ -230,7 +242,9 @@ const SubApiSettings: React.FC = () => {
                 </div>
 
                 <div className="mt-3 p-3 bg-white/40 rounded-xl border border-[#e8e0cc]/40">
-                    <p className="text-[10px] text-[#8b7e64] font-mono leading-relaxed whitespace-pre-wrap">{signalMode === 'wordLibrary'
+                    <p className="text-[10px] text-[#8b7e64] font-mono leading-relaxed whitespace-pre-wrap">{signalMode === 'raw'
+                        ? '[内分泌·当前浓度]\nDA=0.72↑ 5HT=0.48↓ OXT=0.68↑ E=0.62\n\n{角色名}，虽然你不知道，但是体检单上显示了你此时的激素水平——它们潜移默化地改变着你的行为。'
+                        : signalMode === 'wordLibrary'
                         ? '你留意到自己的身体——\n胸口有些发紧，像是有什么东西压着\n脑子有些发沉，眼皮在打架\n\n这些只是你身体的感觉…'
                         : '[身体感知·本轮]\n紧绷感 ████████░░\n安定感 ███░░░░░░░\n精力　 ██░░░░░░░░\n\n这些是你身体的节律…'
                     }</p>

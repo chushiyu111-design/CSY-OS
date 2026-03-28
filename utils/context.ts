@@ -139,7 +139,7 @@ export const ContextBuilder = {
         if (char.moodState) {
             const internalState = resolveInternalState(char.moodState as any);
             if (internalState) {
-                const bodySignals = renderBodySignals(internalState);
+                const bodySignals = renderBodySignals(internalState, char.name);
                 if (bodySignals) {
                     context += bodySignals + '\n\n';
                 }
