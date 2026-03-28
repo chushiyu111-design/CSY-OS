@@ -37,8 +37,10 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
+          sudo apt-get install -y dos2unix
+          dos2unix ./gradlew
           chmod +x ./gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
