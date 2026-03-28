@@ -18,7 +18,7 @@ const HEALTH_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
  * Default backend URL — hardcoded for convenience.
  * Change this when deploying to production VPS.
  */
-const DEFAULT_BACKEND_URL = 'http://localhost:6677';
+const DEFAULT_BACKEND_URL = 'http://43.134.141.80:6677';
 
 /**
  * Get the configured backend URL.

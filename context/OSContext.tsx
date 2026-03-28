@@ -725,7 +725,7 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
         // ═══ 尝试后端模式 ═══
         const backendToken = localStorage.getItem('csyos_backend_token');
-        const backendUrl = localStorage.getItem('csyos_backend_url') || 'http://localhost:6677';
+        const backendUrl = localStorage.getItem('csyos_backend_url') || 'http://43.134.141.80:6677';
         let sseSource: EventSource | null = null;
         let contextPushTimer: ReturnType<typeof setInterval> | null = null;
         let localCleanup: (() => void) | null = null;
@@ -806,6 +806,12 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
                 console.log('🤖 [Agent] Started (backend mode)');
                 usingBackend = true;
+
+                // 🔔 自动注册 Web Push 推送通知（静默，不影响主流程）
+                import('../utils/pushInit').then(({ initPushNotifications }) => {
+                    const userName = userProfile?.name || 'default';
+                    initPushNotifications(backendUrl, backendToken!, userName);
+                }).catch(() => {});
 
                 // SSE: 监听后端决策 (通过 URL 参数传 token，因为 EventSource 不支持 headers)
                 sseSource = new EventSource(`${backendUrl}/api/agent/events?token=${backendToken}&charId=${activeCharacterId}`);

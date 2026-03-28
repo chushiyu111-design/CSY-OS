@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 
 export const BackendPassCard: React.FC = () => {
-    const [backendUrl, setBackendUrlInput] = useState(() => localStorage.getItem('csyos_backend_url') || 'http://localhost:6677');
+    const [backendUrl, setBackendUrlInput] = useState(() => localStorage.getItem('csyos_backend_url') || 'http://43.134.141.80:6677');
     const [token, setToken] = useState(() => localStorage.getItem('csyos_backend_token') || '');
     const [status, setStatus] = useState('');
 
@@ -29,7 +29,7 @@ export const BackendPassCard: React.FC = () => {
     const handleTest = async () => {
         if (!token.trim()) { setStatus('请先填写通行证密码'); return; }
         setStatus('连接中...');
-        const currentUrl = backendUrl.replace(/\/+$/, '').trim() || 'http://localhost:6677';
+        const currentUrl = backendUrl.replace(/\/+$/, '').trim() || 'http://43.134.141.80:6677';
         try {
             const resp = await fetch(`${currentUrl}/health`, {
                 headers: { 'Authorization': `Bearer ${token.trim()}` },
@@ -69,7 +69,7 @@ export const BackendPassCard: React.FC = () => {
                         type="text" 
                         value={backendUrl} 
                         onChange={e => setBackendUrlInput(e.target.value)}
-                        placeholder="http://localhost:6677"
+                        placeholder="http://43.134.141.80:6677"
                         className="w-full bg-white/80 border border-slate-200/60 rounded-xl px-4 py-2.5 text-xs font-mono focus:bg-white focus:border-blue-300 transition-all shadow-sm"
                     />
                 </div>
