@@ -1,5 +1,5 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { ShareNetwork, Trash, Plus, Smiley, PaperPlaneTilt, Money, BookOpenText, GearSix, Image, Lock, ArrowsClockwise } from '@phosphor-icons/react';
 import { CharacterProfile, ChatTheme, EmojiCategory, Emoji } from '../../types';
 import { PRESET_THEMES } from './ChatConstants';
@@ -21,6 +21,7 @@ interface ChatInputAreaProps {
     onForwardSelected?: () => void;
     selectedCount: number;
     emojis: Emoji[];
+    allVisibleEmojis?: Emoji[];
     characters: CharacterProfile[];
     activeCharacterId: string;
     onCharSelect: (id: string) => void;
@@ -55,7 +56,7 @@ interface ChatInputAreaProps {
 const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     input, setInput, isTyping, selectionMode,
     showPanel, setShowPanel, onSend, onDeleteSelected, onForwardSelected, selectedCount,
-    emojis, characters, activeCharacterId, onCharSelect,
+    emojis, allVisibleEmojis = [], characters, activeCharacterId, onCharSelect,
     customThemes, onUpdateTheme, onRemoveTheme, activeThemeId,
     onPanelAction, onImageSelect, isSummarizing,
     categories = [], activeCategory = 'default',
@@ -99,6 +100,31 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             onImageSelect(file);
         }
         if (e.target) e.target.value = ''; // Reset
+    };
+
+    // --- Auto-Suggest Emoji Matching ---
+    const categoryMap = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const cat of categories) m.set(cat.id, cat.name);
+        return m;
+    }, [categories]);
+
+    const suggestEmojis = useMemo(() => {
+        const q = input.trim();
+        if (q.length < 2 || allVisibleEmojis.length === 0) return [];
+        const results: Emoji[] = [];
+        for (const e of allVisibleEmojis) {
+            if (e.name.includes(q) || q.includes(e.name)) {
+                results.push(e);
+                if (results.length >= 8) break;
+            }
+        }
+        return results;
+    }, [input, allVisibleEmojis]);
+
+    const handleSuggestClick = (emoji: Emoji) => {
+        onPanelAction('send-emoji', emoji);
+        setInput('');
     };
 
     // --- Unified Touch/Long-Press Logic ---
@@ -184,6 +210,31 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     return (
         <>
             <div className="sully-chat-input bg-white/90 backdrop-blur-2xl border-t border-slate-200/50 pb-safe shrink-0 z-40 shadow-[0_-5px_15px_rgba(0,0,0,0.02)] relative transition-all duration-300">
+
+                {/* === Auto-Suggest Emoji Floating Panel === */}
+                {suggestEmojis.length > 0 && !selectionMode && (
+                    <div className="absolute bottom-full left-0 right-0 z-50 px-3 pb-2 pointer-events-none" style={{ animation: 'popIn 0.2s ease-out' }}>
+                        <div className="pointer-events-auto bg-white/85 backdrop-blur-xl border border-white/50 rounded-2xl shadow-2xl px-3 py-2.5">
+                            <div className="flex gap-2.5 overflow-x-auto no-scrollbar">
+                                {suggestEmojis.map((e, i) => (
+                                    <button
+                                        key={`${e.name}-${i}`}
+                                        onClick={() => handleSuggestClick(e)}
+                                        className="flex flex-col items-center gap-1 shrink-0 active:scale-90 transition-transform"
+                                    >
+                                        <div className="w-14 h-14 bg-white rounded-xl p-1.5 shadow-sm border border-slate-100">
+                                            <img src={e.url} className="w-full h-full object-contain" alt={e.name} />
+                                        </div>
+                                        <span className="text-[10px] text-slate-500 max-w-14 truncate">{e.name}</span>
+                                        {e.categoryId && categoryMap.get(e.categoryId) && e.categoryId !== 'default' && (
+                                            <span className="text-[8px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full max-w-14 truncate">{categoryMap.get(e.categoryId)}</span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {selectionMode ? (
                     <div className="p-3 flex gap-2 bg-white/50 backdrop-blur-md">
@@ -315,9 +366,12 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                                                 onMouseUp={handleTouchEnd}
                                                 onMouseLeave={handleTouchEnd}
                                                 onContextMenu={(ev) => ev.preventDefault()}
-                                                className="aspect-square bg-white rounded-2xl p-2 shadow-sm relative active:scale-95 transition-transform select-none"
+                                                className="bg-white rounded-2xl p-2 shadow-sm relative active:scale-95 transition-transform select-none flex flex-col items-center"
                                             >
-                                                <img src={e.url} className="w-full h-full object-contain pointer-events-none" />
+                                                <div className="aspect-square w-full">
+                                                    <img src={e.url} className="w-full h-full object-contain pointer-events-none" />
+                                                </div>
+                                                <span className="text-[9px] text-slate-400 truncate w-full text-center mt-0.5 leading-tight">{e.name}</span>
                                             </button>
                                         ))}
                                     </div>

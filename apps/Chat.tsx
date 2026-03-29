@@ -1078,6 +1078,12 @@ const Chat: React.FC = () => {
         return e.categoryId === activeCategory;
     }), [emojis, activeCategory, hiddenCategoryIds]);
 
+    // All visible emojis (cross-category) for auto-suggest while typing
+    const allVisibleEmojis = useMemo(() => emojis.filter(e => {
+        if (e.categoryId && hiddenCategoryIds.has(e.categoryId)) return false;
+        return true;
+    }), [emojis, hiddenCategoryIds]);
+
     // Memoize ChatInputArea callbacks
     const handleSendCallback = useCallback(() => handleSendText(), [char, input, replyTarget]);
     const handleCharSelectCallback = useCallback((id: string) => { setActiveCharacterId(id); setShowPanel('none'); }, []);
@@ -1369,6 +1375,7 @@ const Chat: React.FC = () => {
                     onForwardSelected={handleForwardSelected}
                     selectedCount={selectedMsgIds.size}
                     emojis={filteredEmojis}
+                    allVisibleEmojis={allVisibleEmojis}
                     characters={characters} activeCharacterId={activeCharacterId}
                     onCharSelect={handleCharSelectCallback}
                     customThemes={customThemes} onUpdateTheme={(id) => updateCharacter(char.id, { bubbleStyle: id })}

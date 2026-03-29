@@ -72,4 +72,7 @@ export interface FullBackupData {
 
     // Vector Memory Data
     vectorMemories?: VectorMemory[];
+
+    // Extra localStorage config (sub API, embedding, backend, etc.)
+    extraLocalStorageConfig?: Record<string, string>;
 }
