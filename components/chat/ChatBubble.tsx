@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { renderMarkdown } from '../../utils/markdownLite';
 import type { BubbleStyle } from '../../types/chat';
 
@@ -11,6 +11,7 @@ import type { BubbleStyle } from '../../types/chat';
  *     ├── Decoration     (absolute, 贴纸可超出边界)
  *     └── Inner Shell    (overflow-hidden + borderRadius, 底纹被正确裁切)
  *           ├── Background Image  (absolute inset-0)
+ *           ├── Thinking Panel    (collapsible, editorial style)
  *           ├── Reply/Quote Block
  *           ├── Text Content
  *           └── Translate Toggle
@@ -29,6 +30,7 @@ interface ChatBubbleProps {
     showTranslateButton?: boolean;
     isShowingTarget?: boolean;
     onTranslateToggle?: () => void;
+    thinking?: string;
 }
 
 const ChatBubble: React.FC<ChatBubbleProps> = ({
@@ -39,9 +41,11 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
     showTranslateButton,
     isShowingTarget,
     onTranslateToggle,
+    thinking,
 }) => {
     const radius = styleConfig.borderRadius ?? 6;
     const bubbleRef = useRef<HTMLDivElement>(null);
+    const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
     // Apply Workshop-customizable properties via setProperty with !important
     // This guarantees custom bubble styles override any theme CSS
@@ -142,6 +146,74 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
                             opacity: styleConfig.backgroundImageOpacity ?? 0.5
                         }}
                     />
+                )}
+
+                {/* Layer 2.5: Thinking Chain Panel (editorial collapsible) */}
+                {thinking && (
+                    <div className="relative z-10 select-none" style={{ marginBottom: thinkingExpanded ? '6px' : '2px' }}>
+                        {/* Collapsed toggle */}
+                        <div
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); setThinkingExpanded(prev => !prev); }}
+                            className="flex items-center gap-1.5 cursor-pointer active:opacity-60 transition-opacity"
+                            style={{ userSelect: 'none' }}
+                        >
+                            <span style={{
+                                fontFamily: "'Georgia', 'Palatino Linotype', 'Book Antiqua', 'Palatino', serif",
+                                fontStyle: 'italic',
+                                fontSize: '10px',
+                                letterSpacing: '0.5px',
+                                color: styleConfig.textColor ? `${styleConfig.textColor}66` : 'rgba(120, 110, 95, 0.55)',
+                            }}>
+                                ‹ 𝘛𝘩𝘪𝘯𝘬𝘪𝘯𝘨 ›
+                            </span>
+                            <svg
+                                viewBox="0 0 10 6" fill="none" className="transition-transform duration-200"
+                                style={{
+                                    width: '8px', height: '5px',
+                                    transform: thinkingExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    opacity: 0.35,
+                                }}
+                            >
+                                <path d="M1 1L5 5L9 1" stroke={styleConfig.textColor || '#786e5f'} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                        </div>
+
+                        {/* Expanded content */}
+                        <div
+                            className="transition-all duration-300 ease-in-out"
+                            style={{
+                                maxHeight: thinkingExpanded ? '240px' : '0',
+                                opacity: thinkingExpanded ? 1 : 0,
+                                overflow: 'hidden',
+                                marginTop: thinkingExpanded ? '4px' : '0',
+                            }}
+                        >
+                            <div
+                                className="overflow-y-auto no-scrollbar"
+                                style={{
+                                    maxHeight: '220px',
+                                    padding: '8px 10px',
+                                    borderRadius: '6px',
+                                    background: styleConfig.textColor
+                                        ? `${styleConfig.textColor}08`
+                                        : 'rgba(140, 130, 115, 0.06)',
+                                    borderTop: `1px solid ${styleConfig.textColor ? `${styleConfig.textColor}12` : 'rgba(140, 130, 115, 0.1)'}`,
+                                    borderBottom: `1px solid ${styleConfig.textColor ? `${styleConfig.textColor}12` : 'rgba(140, 130, 115, 0.1)'}`,
+                                }}
+                            >
+                                <div style={{
+                                    fontSize: '11px',
+                                    lineHeight: '1.65',
+                                    color: styleConfig.textColor ? `${styleConfig.textColor}88` : 'rgba(80, 72, 60, 0.55)',
+                                    fontFamily: "'Georgia', 'Palatino Linotype', serif",
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word',
+                                }}>
+                                    {thinking}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 {/* Layer 3: Reply/Quote Block */}

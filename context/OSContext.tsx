@@ -655,12 +655,16 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                     const dueMessages = await DB.getDueScheduledMessages(char.id);
                     if (dueMessages.length > 0) {
                         for (const msg of dueMessages) {
-                            await DB.saveMessage({
+                            const savedId = await DB.saveMessage({
                                 charId: msg.charId,
                                 role: 'assistant',
                                 type: 'text',
                                 content: msg.content
                             });
+                            // 思考链 metadata 透传（来自后端 Agent 消息）
+                            if (msg.metadata?.thinking && savedId) {
+                                await DB.updateMessageMetadata(savedId, { thinking: msg.metadata.thinking });
+                            }
                             await DB.deleteScheduledMessage(msg.id);
                         }
                         hasNewMessage = true;
@@ -794,7 +798,7 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                             baseUrl: apiConfig.baseUrl,
                             apiKey: apiConfig.apiKey,
                             model: apiConfig.model,
-                            useGeminiJailbreak: localStorage.getItem('use_gemini_jailbreak') === 'true',
+                            useGeminiJailbreak: true, // always-on
                         },
                         contextSnapshot: snapshot,
                         debug: localStorage.getItem('autonomous_debug') === 'true',
@@ -815,12 +819,49 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
                 // SSE: 监听后端决策 (通过 URL 参数传 token，因为 EventSource 不支持 headers)
                 sseSource = new EventSource(`${backendUrl}/api/agent/events?token=${backendToken}&charId=${activeCharacterId}`);
+
+                // ─── SSE 连接成功后，拉取离线期间未投递的消息 ───
+                sseSource.addEventListener('open', async () => {
+                    try {
+                        const resp = await fetch(`${backendUrl}/api/agent/messages?charId=${activeCharacterId}`, {
+                            headers: { 'Authorization': `Bearer ${backendToken}` },
+                        });
+                        if (!resp.ok) return;
+                        const { messages: pendingMsgs } = await resp.json();
+                        if (!pendingMsgs || pendingMsgs.length === 0) return;
+                        console.log(`🤖 [Agent] Pulled ${pendingMsgs.length} missed message(s) from backend`);
+                        const now = Date.now();
+                        for (let mi = 0; mi < pendingMsgs.length; mi++) {
+                            const msg = pendingMsgs[mi];
+                            // 解析后端 metadata（含 thinking chain）
+                            let msgMeta: any = undefined;
+                            if (msg.metadata) {
+                                try { msgMeta = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata; } catch {}
+                            }
+                            const bubbles = msg.content.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+                            for (let bi = 0; bi < bubbles.length; bi++) {
+                                await DB.saveScheduledMessage({
+                                    id: `sync-${msg.id}-${bi}-${Math.random().toString(36).slice(2, 6)}`,
+                                    charId: msg.char_id,
+                                    content: bubbles[bi],
+                                    dueAt: now + (mi * bubbles.length + bi) * 2000,
+                                    createdAt: msg.created_at,
+                                    metadata: bi === 0 && msgMeta?.thinking ? { thinking: msgMeta.thinking } : undefined,
+                                });
+                            }
+                        }
+                        console.log(`🤖 [Agent] Scheduled ${pendingMsgs.length} synced message(s)`);
+                    } catch (err) {
+                        console.warn('🤖 [Agent] Failed to pull missed messages:', err);
+                    }
+                });
+
                 // P1-b: 后端已生成完整消息 → 前端通过预制消息管道存+显示
                 sseSource.addEventListener('generated_message', async (evt: MessageEvent) => {
                     try {
-                        const { content, charId: cId } = JSON.parse(evt.data);
+                        const { content, charId: cId, agentMsgId, thinking } = JSON.parse(evt.data);
                         if (cId !== activeCharacterId) return;
-                        console.log(`🤖 [Agent] Backend generated message received (${content.length} chars)`);
+                        console.log(`🤖 [Agent] Backend generated message received (${content.length} chars${thinking ? ', +thinking' : ''})`);
 
                         // 按换行拆分为多条气泡（复用 autonomousAgent 的模式）
                         const bubbles = content
@@ -840,9 +881,22 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                                 content: bubbles[i],
                                 dueAt: now + i * BUBBLE_INTERVAL_MS,
                                 createdAt: now,
+                                metadata: i === 0 && thinking ? { thinking } : undefined,
                             });
                         }
                         console.log(`🤖 [Agent] Scheduled ${bubbles.length} bubble(s) from backend`);
+
+                        // Ack 消息已投递（防止下次重连时重复拉取）
+                        if (agentMsgId && backendToken) {
+                            fetch(`${backendUrl}/api/agent/messages/ack`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${backendToken}`,
+                                },
+                                body: JSON.stringify({ ids: [agentMsgId] }),
+                            }).catch(() => {});
+                        }
                     } catch (err) {
                         console.error('🤖 [Agent] Failed to handle generated message:', err);
                     }
@@ -912,7 +966,7 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                             body: JSON.stringify(snapshot),
                         });
                     } catch { /* ignore push failures */ }
-                }, 5 * 60 * 1000);
+                }, 60 * 1000); // 1 分钟推一次上下文，减少 snapshot 过时风险
 
                 return true;
             } catch (err) {

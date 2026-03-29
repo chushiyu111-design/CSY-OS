@@ -174,27 +174,6 @@ const ApiSettings: React.FC = () => {
                         {statusMsg || '保存配置'}
                     </button>
 
-                    {/* 深度沉浸模式 */}
-                    <div className="mt-5 pt-4 border-t border-slate-200/60">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                                <div className="p-2 bg-gradient-to-br from-rose-100/60 to-violet-100/60 rounded-xl text-rose-500 shrink-0">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 18a3.75 3.75 0 0 0 .495-7.468 5.99 5.99 0 0 0-1.925 3.547 5.975 5.975 0 0 1-2.133-1.001A3.75 3.75 0 0 0 12 18Z" /></svg>
-                                </div>
-                                <div className="min-w-0">
-                                    <h3 className="text-xs font-bold text-slate-600">深度沉浸模式</h3>
-                                    <p className="text-[10px] text-slate-400 leading-relaxed">适配 Gemini 3.0/3.1</p>
-                                </div>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-3">
-                                <input type="checkbox" checked={apiConfig.useGeminiJailbreak || false} onChange={e => updateApiConfig({ useGeminiJailbreak: e.target.checked })} className="sr-only peer" />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-rose-400 peer-checked:to-violet-500"></div>
-                            </label>
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-2 leading-relaxed pl-[42px]">
-                            开启后可有效提升 Gemini 模型的输出质量。仅对主聊天生效。
-                        </p>
-                    </div>
                 </div>
             </section>
 

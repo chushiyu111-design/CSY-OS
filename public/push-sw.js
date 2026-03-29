@@ -25,7 +25,7 @@ self.addEventListener('push', function (event) {
         body: payload.body || '',
         icon: payload.icon || '/icons/icon-192.webp',
         badge: payload.badge || '/icons/icon-192.webp',
-        tag: payload.data?.charId || 'default',  // 同一角色的通知会合并
+        tag: `${payload.data?.charId || 'msg'}-${Date.now()}`,  // 每条消息独立显示，不折叠
         renotify: true,  // 即使 tag 相同也震动提醒
         data: payload.data || {},
         // Android 专属

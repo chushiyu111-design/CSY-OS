@@ -79,6 +79,8 @@ interface MessageItemProps {
     innerVoice?: string;
     statusCardData?: StatusCardData;
     onRetryInnerVoice?: () => void;
+    // Thinking chain visibility
+    showThinking?: boolean;
 }
 
 const MessageItem = React.memo(({
@@ -109,6 +111,7 @@ const MessageItem = React.memo(({
     innerVoice,
     statusCardData,
     onRetryInnerVoice,
+    showThinking,
 }: MessageItemProps) => {
     const isUser = m.role === 'user';
     const isSystem = m.role === 'system';
@@ -646,6 +649,7 @@ const MessageItem = React.memo(({
             showTranslateButton={showTranslateButton}
             isShowingTarget={isShowingTarget}
             onTranslateToggle={() => onTranslateToggle?.(m.id)}
+            thinking={showThinking && !isUser ? m.metadata?.thinking : undefined}
         />
     );
 }, (prev: MessageItemProps, next: MessageItemProps) => {
@@ -670,7 +674,9 @@ const MessageItem = React.memo(({
         prev.isVoiceTextExpanded === next.isVoiceTextExpanded &&
         prev.innerVoice === next.innerVoice &&
         prev.statusCardData === next.statusCardData &&
-        prev.onRetryInnerVoice === next.onRetryInnerVoice;
+        prev.onRetryInnerVoice === next.onRetryInnerVoice &&
+        prev.showThinking === next.showThinking &&
+        prev.msg.metadata?.thinking === next.msg.metadata?.thinking;
 });
 
 export default MessageItem;

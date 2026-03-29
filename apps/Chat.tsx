@@ -1250,6 +1250,8 @@ const Chat: React.FC = () => {
                     updateCharacter(char.id, { customStatusTemplates: [tpl] });
                     addToast('自定义模板已保存', 'success');
                 }}
+                showThinking={char.showThinking !== false}
+                onToggleShowThinking={() => updateCharacter(char.id, { showThinking: char.showThinking === false ? true : false })}
             />
 
             <ChatHeader
@@ -1316,6 +1318,7 @@ const Chat: React.FC = () => {
                             innerVoice={isLastAssistant ? (char.moodState as any)?.innerVoice : undefined}
                             statusCardData={isLastAssistant && (char.statusBarMode === 'creative' || char.statusBarMode === 'custom' || char.statusBarMode === 'freeform') ? char.lastStatusCard : undefined}
                             onRetryInnerVoice={isLastAssistant ? retryMindSnapshot : undefined}
+                            showThinking={char.showThinking !== false}
                         />
                     );
                 })}

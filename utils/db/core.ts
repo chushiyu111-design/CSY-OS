@@ -44,6 +44,7 @@ export interface ScheduledMessage {
     content: string;
     dueAt: number;
     createdAt: number;
+    metadata?: any;
 }
 
 // Built-in Presets
