@@ -349,8 +349,10 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     // Ref mirrors for scheduler
     const activeAppRef = useRef(appCtx.activeApp);
     const activeCharIdRef = useRef(activeCharacterId);
+    const charactersRef = useRef(characters);
     useEffect(() => { activeAppRef.current = appCtx.activeApp; }, [appCtx.activeApp]);
     useEffect(() => { activeCharIdRef.current = activeCharacterId; }, [activeCharacterId]);
+    useEffect(() => { charactersRef.current = characters; }, [characters]);
 
     // --- Helper to inject custom font ---
     const applyCustomFont = (fontData: string | undefined) => {
@@ -720,7 +722,7 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     // --- Autonomous Agent (自主决策引擎 — 后端优先 + 本地 Fallback) ---
     useEffect(() => {
         if (!isDataLoaded || !activeCharacterId) return;
-        const char = characters.find(c => c.id === activeCharacterId);
+        const char = charactersRef.current.find(c => c.id === activeCharacterId);
         if (!char) return;
 
         // 从 localStorage 读取副 API 配置
@@ -928,7 +930,7 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 // 定期推送上下文更新 (每5分钟)
                 contextPushTimer = setInterval(async () => {
                     try {
-                        const freshChar = characters.find(c => c.id === activeCharacterId);
+                        const freshChar = charactersRef.current.find(c => c.id === activeCharacterId);
                         if (!freshChar) return;
                         const recentMsgs = await DB.getRecentMessagesByCharId(activeCharacterId, 30);
                         const snapshot = buildContextSnapshot();
@@ -1018,7 +1020,7 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 localCleanup = null;
             }
         };
-    }, [isDataLoaded, activeCharacterId, characters, agentReloadCounter]);
+    }, [isDataLoaded, activeCharacterId, agentReloadCounter]);
 
     const updateTheme = async (updates: Partial<OSTheme>) => {
         const { wallpaper, launcherWidgetImage, launcherWidgets, desktopDecorations, customFont, ...styleUpdates } = updates;
