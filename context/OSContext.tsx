@@ -808,6 +808,13 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                         },
                         contextSnapshot: snapshot,
                         debug: localStorage.getItem('autonomous_debug') === 'true',
+                        // 同步前端 AgentConfig → 后端（频率/冷却/概率等用户自定义参数）
+                        agentConfig: (() => {
+                            try {
+                                const raw = localStorage.getItem('agent_config');
+                                return raw ? JSON.parse(raw) : undefined;
+                            } catch { return undefined; }
+                        })(),
                     }),
                     signal: AbortSignal.timeout(5000),
                 });
