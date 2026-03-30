@@ -38,8 +38,16 @@ export async function initPushNotifications(
     userId: string,
 ): Promise<void> {
     // 前置检查
-    if (isCapacitorNative()) return;
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (isCapacitorNative()) {
+        console.log('🔔 [Push] Capacitor native detected, skipping Web Push init');
+        return;
+    }
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.log('🔔 [Push] Web Push not supported by browser, skipping');
+        return;
+    }
+
+    console.log(`🔔 [Push] Auto-init starting... userId="${userId}"`);
 
     // 已注册过则跳过（避免每次 Agent 启动都重复注册）
     try {
@@ -56,6 +64,7 @@ export async function initPushNotifications(
     try {
         // 1. 请求通知权限
         const permission = await Notification.requestPermission();
+        console.log(`🔔 [Push] Notification permission: ${permission}`);
         if (permission !== 'granted') {
             console.log('🔔 [Push] Permission denied, skipping');
             return;

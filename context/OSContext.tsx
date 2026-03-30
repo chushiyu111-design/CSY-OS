@@ -654,30 +654,34 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 try {
                     const dueMessages = await DB.getDueScheduledMessages(char.id);
                     if (dueMessages.length > 0) {
-                        for (const msg of dueMessages) {
-                            const savedId = await DB.saveMessage({
-                                charId: msg.charId,
-                                role: 'assistant',
-                                type: 'text',
-                                content: msg.content
-                            });
-                            // 思考链 metadata 透传（来自后端 Agent 消息）
-                            if (msg.metadata?.thinking && savedId) {
-                                await DB.updateMessageMetadata(savedId, { thinking: msg.metadata.thinking });
-                            }
-                            await DB.deleteScheduledMessage(msg.id);
+                        // 每次只投递一条最早到期的消息（产生逐条弹出效果）
+                        dueMessages.sort((a, b) => a.dueAt - b.dueAt);
+                        const msg = dueMessages[0];
+                        
+                        const savedId = await DB.saveMessage({
+                            charId: msg.charId,
+                            role: 'assistant',
+                            type: 'text',
+                            content: msg.content
+                        }, msg.createdAt); // 还原真实的生成时间戳
+                        
+                        // 思考链 metadata 透传（来自后端 Agent 消息）
+                        if (msg.metadata?.thinking && savedId) {
+                            await DB.updateMessageMetadata(savedId, { thinking: msg.metadata.thinking });
                         }
+                        await DB.deleteScheduledMessage(msg.id);
+                        
                         hasNewMessage = true;
                         const isChattingWithThisChar = activeAppRef.current === AppID.Chat && activeCharIdRef.current === char.id;
 
                         if (!isChattingWithThisChar) {
                             addToast(`${char.name} 发来了一条消息`, 'success');
-                            pendingUnreads[char.id] = (pendingUnreads[char.id] || 0) + dueMessages.length;
+                            pendingUnreads[char.id] = (pendingUnreads[char.id] || 0) + 1; // 本次只投递了1条
 
                             if (window.Notification && Notification.permission === 'granted') {
                                 try {
                                     const notif = new Notification(char.name, {
-                                        body: dueMessages[0].content,
+                                        body: msg.content,
                                         icon: char.avatar,
                                         silent: false
                                     });
@@ -708,7 +712,7 @@ const OSDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 });
             }
         };
-        schedulerRef.current = setInterval(checkAllSchedules, 5000);
+        schedulerRef.current = setInterval(checkAllSchedules, 3000); // 从 5s 改为 3s（气泡生成间隔）
         checkAllSchedules();
         return () => { if (schedulerRef.current) clearInterval(schedulerRef.current); };
     }, [isDataLoaded, characters]);

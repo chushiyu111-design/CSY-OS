@@ -163,12 +163,12 @@ export const getMessagesByIds = async (ids: number[]): Promise<Message[]> => {
     });
 };
 
-export const saveMessage = async (msg: Omit<Message, 'id' | 'timestamp'>): Promise<number> => {
+export const saveMessage = async (msg: Omit<Message, 'id' | 'timestamp'>, timestamp?: number): Promise<number> => {
     const db = await openDB();
     return new Promise((resolve, reject) => {
         const transaction = db.transaction(STORE_MESSAGES, 'readwrite');
         const store = transaction.objectStore(STORE_MESSAGES);
-        const request = store.add({ ...msg, timestamp: Date.now() });
+        const request = store.add({ ...msg, timestamp: timestamp || Date.now() });
         request.onsuccess = () => resolve(request.result as number);
         request.onerror = () => reject(request.error);
     });
